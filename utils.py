@@ -201,35 +201,58 @@ def load_planetoid(dataset, path):
     return labels, adj, features, adj_labels, feature_labels
 
 
-def load_multi(dataset, root):
+def load_multi(dataset, root, file, is_real):
     # load the data: x, tx, allx, graph
-    if dataset == 'acm':
-        path = root + 'ACM3025.mat'
-    elif dataset == 'dblp':
-        path = root + 'DBLP4057.mat'
-    elif dataset == 'imdb':
-        path = root + 'imdb5k.mat'
-    data = sio.loadmat(path)
+    # if dataset == 'acm':
+    #     path = root + 'ACM3025.mat'
+    # elif dataset == 'dblp':
+    #     path = root + 'DBLP4057.mat'
+    # elif dataset == 'imdb':
+    #     path = root + 'imdb5k.mat'
+        
+    # data = sio.loadmat(path)
     # print(dataset)
     # print(data)
     # rownetworks = np.array([(data['PLP'] - np.eye(N)).tolist()]) #, (data['PLP'] - np.eye(N)).tolist() , (data['PTP'] - np.eye(N)).tolist()])
 
-    if dataset == "acm":
-        truelabels, truefeatures = data['label'], data['feature'].astype(float)
-        N = truefeatures.shape[0]  # nodes num
-        rownetworks = np.array([(data['PAP']).tolist(), (data['PLP']).tolist()])
-    elif dataset == "dblp":
-        truelabels, truefeatures = data['label'], data['features'].astype(float)
-        N = truefeatures.shape[0]
-        rownetworks = np.array([(data['net_APA']).tolist(), (data['net_APCPA']).tolist(), (data['net_APTPA']).tolist()])
-        rownetworks[2] += np.eye(rownetworks[2].shape[0])
-        rownetworks = rownetworks[:2]
-    elif dataset == 'imdb':
-        truelabels, truefeatures = data['label'], data['feature'].astype(float)
-        N = truefeatures.shape[0]
-        rownetworks = np.array([(data['MAM']).tolist(), (data['MDM']).tolist(), (data['MYM']).tolist()])
-        # rownetworks = rownetworks[:2]
 
+
+    # if dataset == "acm":
+    #     truelabels, truefeatures = data['label'], data['feature'].astype(float)
+    #     N = truefeatures.shape[0]  # nodes num
+    #     rownetworks = np.array([(data['PAP']).tolist(), (data['PLP']).tolist()])
+    # elif dataset == "dblp":
+    #     truelabels, truefeatures = data['label'], data['features'].astype(float)
+    #     N = truefeatures.shape[0]
+    #     rownetworks = np.array([(data['net_APA']).tolist(), (data['net_APCPA']).tolist(), (data['net_APTPA']).tolist()])
+    #     rownetworks[2] += np.eye(rownetworks[2].shape[0])
+    #     rownetworks = rownetworks[:2]
+    # elif dataset == 'imdb':
+    #     truelabels, truefeatures = data['label'], data['feature'].astype(float)
+    #     N = truefeatures.shape[0]
+    #     rownetworks = np.array([(data['MAM']).tolist(), (data['MDM']).tolist(), (data['MYM']).tolist()])
+    #     # rownetworks = rownetworks[:2]
+
+    # numView = rownetworks.shape[0]
+    # adjs_labels = []
+    # adjs = []
+    # feature_labels = torch.FloatTensor(np.array(truefeatures)).contiguous()
+    # features = torch.FloatTensor(normalize_features(truefeatures)).contiguous()
+    # for i in range(numView):
+    #     adjs_labels.append(torch.FloatTensor(np.array(rownetworks[i])))
+    #     adjs.append(torch.FloatTensor(normalize_adj(np.array(rownetworks[i]))))
+
+    # labels = torch.LongTensor(np.argmax(truelabels, -1)).contiguous()
+    
+    truefeatures = np.load('D:/Document/研究生/research/graph clustering/embedding_model/data/feature/cs/' + file + '.npy', allow_pickle=True)
+    N = truefeatures.shape[0]
+    if is_real == False:
+        truelabels = np.load('D:/Document/研究生/research/graph clustering/embedding_model/data/label/' + file + '.npy', allow_pickle=True)
+    else:
+        truelabels = np.zeros((N, 1))
+    adj1 = np.load('D:/Document/研究生/research/graph clustering/embedding_model/data/co-usage/' + file + '.npy', allow_pickle=True)
+    adj2 = np.load('D:/Document/研究生/research/graph clustering/embedding_model/data/semantic/' + file + '.npy', allow_pickle=True)
+    rownetworks = np.array([adj1, adj2])
     numView = rownetworks.shape[0]
     adjs_labels = []
     adjs = []
@@ -238,8 +261,8 @@ def load_multi(dataset, root):
     for i in range(numView):
         adjs_labels.append(torch.FloatTensor(np.array(rownetworks[i])))
         adjs.append(torch.FloatTensor(normalize_adj(np.array(rownetworks[i]))))
-
-    labels = torch.LongTensor(np.argmax(truelabels, -1)).contiguous()
+    # labels = torch.LongTensor(np.argmax(truelabels, -1)).contiguous()
+    labels = torch.LongTensor(truelabels).contiguous()
 
     return labels, adjs, features, adjs_labels, feature_labels, numView
 
@@ -532,47 +555,49 @@ def mine_Amazon(dataset, root):
     return X, Gnd
 
 
-def load_data(dataset, path):
+def load_data(dataset, path, file, is_real):
     """Load data."""
-    if dataset in ['cora', 'citeseer', 'pubmed']:
-        num_graph = 2
-        labels, adjs, feature, adjs_labels, feature_label = load_planetoid(dataset, path)
-        feature1_label = torch.matmul(feature_label, feature_label.t())
-        feature1 = normalize_features(feature1_label)
-        features = [feature, feature1]
-        feature_labels = [feature_label, feature1_label]
-        shared_feature = torch.cat(features, dim=-1)
-        shared_feature_label = torch.cat(feature_labels, dim=1)
-        adjs = [adjs, adjs.clone()]
-        adjs_labels = [adjs_labels, adjs_labels.clone()]
-    elif dataset in ['acm', 'dblp']:
-        labels, adjs, feature, adjs_labels, feature_label, num_graph = load_multi(dataset, path)
-        features = []
-        feature_labels = []
-        for _ in range(num_graph):
-            features.append(feature)
-            feature_labels.append(feature_label)
-        shared_feature = feature
-        shared_feature_label = feature_label
-
-    elif dataset in ['chameleon', 'texas', 'squirrel']:
-        labels, adjs, features, adjs_labels, feature_labels, shared_feature, shared_feature_label, num_graph = load_hete_data(dataset, 1)
-    elif dataset == 'acm00':
-        labels, adjs_labels, shared_feature, shared_feature_label, num_graph = load_synthetic_data(r=0.00, path=path)
-    elif dataset == 'acm01':
-        labels, adjs_labels, shared_feature, shared_feature_label, num_graph = load_synthetic_data(r=0.10, path=path)
-    elif dataset == 'acm02':
-        labels, adjs_labels, shared_feature, shared_feature_label, num_graph = load_synthetic_data(r=0.20, path=path)
-    elif dataset == 'acm03':
-        labels, adjs_labels, shared_feature, shared_feature_label, num_graph = load_synthetic_data(r=0.30, path=path)
-    elif dataset == 'acm04':
-        labels, adjs_labels, shared_feature, shared_feature_label, num_graph = load_synthetic_data(r=0.40, path=path)
-    elif dataset == 'acm05':
-        labels, adjs_labels, shared_feature, shared_feature_label, num_graph = load_synthetic_data(r=0.50, path=path)
-
-    else:
-        assert 'Dataset is not exist.'
+    # if dataset in ['cora', 'citeseer', 'pubmed']:
+    #     num_graph = 2
+    #     labels, adjs, feature, adjs_labels, feature_label = load_planetoid(dataset, path)
+    #     feature1_label = torch.matmul(feature_label, feature_label.t())
+    #     feature1 = normalize_features(feature1_label)
+    #     features = [feature, feature1]
+    #     feature_labels = [feature_label, feature1_label]
+    #     shared_feature = torch.cat(features, dim=-1)
+    #     shared_feature_label = torch.cat(feature_labels, dim=1)
+    #     adjs = [adjs, adjs.clone()]
+    #     adjs_labels = [adjs_labels, adjs_labels.clone()]
+    # if dataset in ['acm', 'dblp']:
+    labels, adjs, feature, adjs_labels, feature_label, num_graph = load_multi(dataset, path, file, is_real)
+    features = []
+    feature_labels = []
+    for _ in range(num_graph):
+        features.append(feature)
+        feature_labels.append(feature_label)
+    shared_feature = feature
+    shared_feature_label = feature_label
+    
     return labels, adjs_labels, shared_feature, shared_feature_label, num_graph
+
+    # elif dataset in ['chameleon', 'texas', 'squirrel']:
+    #     labels, adjs, features, adjs_labels, feature_labels, shared_feature, shared_feature_label, num_graph = load_hete_data(dataset, 1)
+    # elif dataset == 'acm00':
+    #     labels, adjs_labels, shared_feature, shared_feature_label, num_graph = load_synthetic_data(r=0.00, path=path)
+    # elif dataset == 'acm01':
+    #     labels, adjs_labels, shared_feature, shared_feature_label, num_graph = load_synthetic_data(r=0.10, path=path)
+    # elif dataset == 'acm02':
+    #     labels, adjs_labels, shared_feature, shared_feature_label, num_graph = load_synthetic_data(r=0.20, path=path)
+    # elif dataset == 'acm03':
+    #     labels, adjs_labels, shared_feature, shared_feature_label, num_graph = load_synthetic_data(r=0.30, path=path)
+    # elif dataset == 'acm04':
+    #     labels, adjs_labels, shared_feature, shared_feature_label, num_graph = load_synthetic_data(r=0.40, path=path)
+    # elif dataset == 'acm05':
+    #     labels, adjs_labels, shared_feature, shared_feature_label, num_graph = load_synthetic_data(r=0.50, path=path)
+
+    # else:
+    #     assert 'Dataset is not exist.'
+    # return labels, adjs_labels, shared_feature, shared_feature_label, num_graph
 
 
 def load_graph(dataset, k):
@@ -707,3 +732,20 @@ def load_synthetic_data(r=0.00, path='./data/'):
     graph_num = len(adjs_labels)
     return labels, adjs_labels, shared_feature, shared_feature_label, graph_num
 
+def calculate_modularity(graph, communities):
+
+    num_edges = graph.number_of_edges()
+    total_weight = sum([data['weight'] for _, _, data in graph.edges(data=True)])
+
+    modularity = 0.0
+    for community in set(communities.values()):
+        nodes_in_community = [node for node, comm in communities.items() if comm == community]
+        subgraph = graph.subgraph(nodes_in_community)
+        subgraph_edges = subgraph.number_of_edges()
+        community_weight = sum([data['weight'] for _, _, data in subgraph.edges(data=True)])
+        
+        community_degree = sum([data for node, data in subgraph.degree(weight='weight')])
+        
+        modularity += (community_weight / total_weight) - ((community_degree / (2 * total_weight)) ** 2)
+    
+    return modularity
