@@ -1,10 +1,11 @@
 import numpy as np
+import networkx as nx
 from munkres import Munkres, print_matrix
 from sklearn.metrics.cluster import normalized_mutual_info_score as nmi_score
 from sklearn.metrics import adjusted_rand_score as ari_score
 from scipy.optimize import linear_sum_assignment as linear
 from sklearn import metrics
-
+from utils import calculate_modularity
 
 def cluster_acc(y_true, y_pred):
     y_true = y_true - np.min(y_true)
@@ -75,9 +76,23 @@ def eva(y_true, y_pred, epoch=0, visible=True, metrics='all'):
     elif metrics == 'acc':
         acc, f1 = cluster_acc(y_true,y_pred)
         result = acc
-    if visible:
-        print(epoch, ':acc {:.4f}'.format(acc), ', nmi {:.4f}'.format(nmi), ', ari {:.4f}'.format(ari),
-            ', f1 {:.4f}'.format(f1))
-        pass
+    # if visible:
+        # print(epoch, ':acc {:.4f}'.format(acc), ', ari {:.4f}'.format(ari), ', nmi {:.4f}'.format(nmi), 
+        #     ', f1 {:.4f}'.format(f1))
+        # pass
     return result
 
+def eva_real(y_pred, file):
+    graph = nx.Graph()
+    adj = np.load('D:/Document/研究生/research/graph clustering/embedding_model/data/co-usage/' + file + '.npy', allow_pickle=True)
+    for i in range(adj.shape[0]):
+        graph.add_node(i)
+        for j in range(i + 1, adj.shape[1]):
+            if adj[i][j] != 0:
+                graph.add_edge(i, j, weight=adj[i][j])
+    communities = {}
+    for i, j in enumerate(y_pred):
+        communities[i] = j
+    modularity = calculate_modularity(graph, communities)
+    # print('modularity: ', modularity)
+    return modularity
