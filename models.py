@@ -80,11 +80,10 @@ class EnDecoder(nn.Module):
 
 
 class DuaLGR(nn.Module):
-    def __init__(self, feat_dim, hidden_dim, latent_dim, endecoder, class_num=None, num_view=None):
+    def __init__(self, feat_dim, hidden_dim, latent_dim, class_num=None, num_view=None):
         super(DuaLGR, self).__init__()
         self.num_view = num_view
 
-        self.endecoder = endecoder
         self.gnn = GNN(feat_dim, hidden_dim, latent_dim)
 
         self.cluster_layer = [Parameter(torch.Tensor(class_num, latent_dim)) for _ in range(num_view)]
@@ -93,33 +92,14 @@ class DuaLGR(nn.Module):
             self.register_parameter('centroid_{}'.format(v), self.cluster_layer[v])
 
     def forward(self, x, adjs, w, pseudo_label, alpha, quantize=0.8, varepsilon=0.3):
-        a_pred_x, x_pred_x, z_norm_x = self.endecoder(x)
 
-        omega = torch.mm(z_norm_x, z_norm_x.t())
-        omega[omega > quantize] = 1
-        omega[omega <= quantize] = 0
-
-        homo_r = [cal_homo_ratio(adjs[v].detach().cpu().numpy(), np.asarray(pseudo_label), True) for v in range(self.num_view)]
-
-        order = []
-        for r in homo_r:
-            if r <= varepsilon:
-                order.append(0)
-            else:
-                od = int(np.floor(1 / (1 - r + 1e-9)))
-                if od >= 8:
-                    od = 8
-                order.append(od)
-
-        adj_refine = [self.get_A_with_order(omega, 1) + alpha * self.get_A_with_order(adjs[v], order[v]) for v in range(self.num_view)]
-
-        S = sum(w[v] * adj_refine[v] for v in range(self.num_view)) / sum(w)
+        S = sum(w[v] * adjs[v] for v in range(self.num_view)) / sum(w)
 
         z_all = []
         q_all = []
 
         for v in range(self.num_view):
-            z_norm, a_pred, x_pred = self.gnn(x, adj_refine[v], order=1)
+            z_norm, a_pred, x_pred = self.gnn(x, adjs[v], order=1)
             z_all.append(z_norm)
             q = self.predict_distribution(z_norm, v)
             q_all.append(q)
@@ -127,7 +107,7 @@ class DuaLGR(nn.Module):
         z_all.append(z_norm)
         q = self.predict_distribution(z_norm, -1)
         q_all.append(q)
-        return a_pred, x_pred, z_all, q_all, a_pred_x, x_pred_x
+        return a_pred, x_pred, z_all, q_all
 
     def get_A_with_order(self, adj_label, order):
         adj = self.normalize_adj(adj_label)
@@ -175,7 +155,3 @@ class GNN(nn.Module):
         a_pred = torch.sigmoid(torch.mm(z_norm, z_norm.t()))
         x_pred = torch.sigmoid(self.dec(F.relu(z), dropout=False))
         return z_norm, a_pred, x_pred
-
-
-
-

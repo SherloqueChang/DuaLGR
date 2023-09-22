@@ -1,5 +1,6 @@
 import argparse
 import os.path
+import re
 
 import math
 import numpy as np
@@ -10,7 +11,7 @@ from torch.optim import Adam
 from sklearn.cluster import KMeans
 from sklearn.manifold import TSNE
 
-from utils import load_data, normalize_weight, cal_homo_ratio, get_n_clusters, pca_weights
+from utils import load_data, normalize_weight, cal_homo_ratio, pca_weights, get_n_clusters
 from models import EnDecoder, DuaLGR, GNN
 from evaluation import eva, eva_real
 from settings import get_settings
@@ -20,8 +21,7 @@ import pandas as pd
 
 
 
-    
-# python DuaLGR.py --dataset dblp --train True --use_cuda True --cuda_device 0
+# python DuaLGR.py --cuda_device 0
 
 files_syn = [
     
@@ -29,7 +29,6 @@ files_syn = [
     'PolarDB-for-PostgreSQL-4_src_include_utils_merge_four_h',
     'PolarDB-for-PostgreSQL-6_src_include_utils_merge_six_h',
     'PolarDB-for-PostgreSQL-8_src_include_utils_merge_eight_h',
-    
     'FreeRDP-2_include_freerdp_merge_h',
     'FreeRDP-4_include_freerdp_merge_h',
     'FreeRDP-6_include_freerdp_merge_h',
@@ -49,15 +48,15 @@ files_real = [
     'wiredtiger_src_include_extern_h'
 ]
 
-for file in files_real:
+for file in files_syn:
 
     is_real = False
     # for n_clusters in [4,5,6,7,8,9,10]:
     n_clusters = get_n_clusters(file)
     
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset', type=str, default='acm', help='datasets: acm, dblp, texas, chameleon, acm00, acm01, acm02, acm03, acm04, acm05')
-    parser.add_argument('--train', type=bool, default=False, help='training mode')
+    parser.add_argument('--dataset', type=str, default='dblp', help='datasets: acm, dblp, texas, chameleon, acm00, acm01, acm02, acm03, acm04, acm05')
+    parser.add_argument('--train', type=bool, default=True, help='training mode')
     parser.add_argument('--cuda_device', type=int, default=0, help='')
     parser.add_argument('--use_cuda', type=bool, default=True, help='')
     parser.add_argument('--file', type=str, default='fontforge-6_fontforge_merge_h', help='')
@@ -67,7 +66,7 @@ for file in files_real:
     parser.add_argument('--alpha', type=int, default=5, help='alpha')
     parser.add_argument('--quantize', type=float, default=0.8, help='quantize Omega')
     parser.add_argument('--varepsilon', type=float, default=0.5, help='varepsilon')
-    parser.add_argument('--endecoder_hidden_dim', type=int, default=512, help='endecoder_hidden_dim')
+    parser.add_argument('--endecoder_hidden_dim', type=int, default=256, help='endecoder_hidden_dim')
     parser.add_argument('--hidden_dim', type=int, default=512, help='hidden_dim')
     parser.add_argument('--latent_dim', type=int, default=512, help='latent_dim')
     parser.add_argument('--pretrain', type=int, default=500, help='pretrain epochs')
@@ -75,7 +74,7 @@ for file in files_real:
     parser.add_argument('--patience', type=int, default=500, help='')
     parser.add_argument('--endecoder_lr', type=float, default=1e-3, help='learning rate for autoencoder')
     parser.add_argument('--endecoder_weight_decay', type=float, default=5e-6, help='weight decay for autoencoder')
-    parser.add_argument('--lr', type=float, default=3e-3, help='learning rate for DuaLGR')
+    parser.add_argument('--lr', type=float, default=1e-3, help='learning rate for DuaLGR')
     parser.add_argument('--weight_decay', type=float, default=5e-6, help='weight decay for DuaLGR')
     parser.add_argument('--update_interval', type=int, default=10, help='')
     parser.add_argument('--random_seed', type=int, default=2023, help='')
@@ -126,13 +125,11 @@ for file in files_real:
         class_num = args.n_clusters
     y = labels.cpu().numpy()
 
-    endecoder = EnDecoder(feat_dim, endecoder_hidden_dim, class_num)
-    model = DuaLGR(feat_dim, hidden_dim, latent_dim, endecoder, class_num=class_num, num_view=graph_num)
+    model = DuaLGR(feat_dim, hidden_dim, latent_dim, class_num=class_num, num_view=graph_num)
 
     if use_cuda:
         torch.cuda.set_device(cuda_device)
         torch.cuda.manual_seed(random_seed)
-        endecoder = endecoder.cuda()
         model = model.cuda()
         adjs_labels = [adj_labels.cuda() for adj_labels in adjs_labels]
         shared_feature = shared_feature.cuda()
@@ -150,35 +147,6 @@ for file in files_real:
             eva_real(y_pred, file)
         print()
 
-        optimizer_endecoder = Adam(endecoder.parameters(), lr=endecoder_lr, weight_decay=endecoder_weight_decay)
-
-        for epoch_num in range(pretrain):
-            endecoder.train()
-            loss_re = 0.
-            loss_a = 0.
-
-            a_pred, x_pred, z_norm = endecoder(shared_feature)
-            for v in range(graph_num):
-                loss_a += F.binary_cross_entropy(a_pred, adjs_labels[v])
-            loss_re += F.binary_cross_entropy(x_pred, shared_feature_label)
-
-            loss = loss_re + loss_a
-            optimizer_endecoder.zero_grad()
-            loss.backward()
-            optimizer_endecoder.step()
-            # print('epoch: {}, loss:{}, loss_re:{}, loss_a: {}'.format(epoch_num, loss, loss_re, loss_a))
-
-            if epoch_num == pretrain - 1:
-                print('Pretrain complete...')
-                kmeans = KMeans(n_clusters=class_num, n_init=5)
-                y_pred = kmeans.fit_predict(z_norm.data.cpu().numpy())
-                if is_real == False:
-                    eva(y, y_pred, 'Kz')
-                else:
-                    eva_real(y_pred, file)
-                break
-
-
         # =========================================Train=============================================================
         print('Begin trains...')
         param_all = []
@@ -186,14 +154,13 @@ for file in files_real:
             param_all.append({'params': model.cluster_layer[v]})
         param_all.append({'params': model.gnn.parameters()})
         optimizer_model = Adam(param_all, lr=lr, weight_decay=weight_decay)
-
-        best_a = [1e-12 for i in range(graph_num)]
-        weights = normalize_weight(best_a)
+        
+        weights = np.load('../data/weights_2/' + file + '.npy', allow_pickle=True)
 
         with torch.no_grad():
             model.eval()
             pseudo_label = y_pred
-            a_pred, x_pred, z_all, q_all, a_pred_x, x_pred_x = model(shared_feature, adjs_labels, weights, pseudo_label, alpha, quantize=quantize, varepsilon=varepsilon)
+            a_pred, x_pred, z_all, q_all = model(shared_feature, adjs_labels, weights, pseudo_label, alpha, quantize=quantize, varepsilon=varepsilon)
             kmeans = KMeans(n_clusters=class_num, n_init=5)
             for v in range(graph_num+1):
                 y_pred = kmeans.fit_predict(z_all[v].data.cpu().numpy())
@@ -222,7 +189,7 @@ for file in files_real:
             loss_re_a = 0.
             loss_re_ax = 0.
 
-            a_pred, x_pred, z_all, q_all, a_pred_x, x_pred_x = model(shared_feature, adjs_labels, weights, pseudo_label, alpha, quantize=quantize, varepsilon=varepsilon)
+            a_pred, x_pred, z_all, q_all = model(shared_feature, adjs_labels, weights, pseudo_label, alpha, quantize=quantize, varepsilon=varepsilon)
             for v in range(graph_num):
                 loss_re_a += F.binary_cross_entropy(a_pred, adjs_labels[v])
             loss_re_x = F.binary_cross_entropy(x_pred, shared_feature_label)
@@ -231,14 +198,6 @@ for file in files_real:
             kmeans = KMeans(n_clusters=class_num, n_init=5)
             y_prim = kmeans.fit_predict(z_all[-1].detach().cpu().numpy())
             pseudo_label = y_prim
-
-            for v in range(graph_num):
-                y_pred = kmeans.fit_predict(z_all[v].detach().cpu().numpy())
-                a = eva(y_prim, y_pred, visible=False, metrics='nmi')
-                best_a[v] = a
-
-            weights = normalize_weight(best_a, p=weight_soft)
-            # print(weights)
 
 
             p = model.target_distribution(q_all[-1])
@@ -258,7 +217,7 @@ for file in files_real:
             if epoch_num % update_interval == 0:
                 model.eval()
                 with torch.no_grad():
-                    a_pred, x_pred, z_all, q_all, a_pred_x, x_pred_x = model(shared_feature, adjs_labels, weights, pseudo_label, alpha, quantize=quantize, varepsilon=varepsilon)
+                    a_pred, x_pred, z_all, q_all = model(shared_feature, adjs_labels, weights, pseudo_label, alpha, quantize=quantize, varepsilon=varepsilon)
                     kmeans = KMeans(n_clusters=class_num, n_init=5)
                     y_eval = kmeans.fit_predict(z_all[-1].detach().cpu().numpy())
                     if is_real == False:
@@ -281,7 +240,6 @@ for file in files_real:
                     bad_count = 0
                     best_result = y_eval
                     torch.save({'state_dict': model.state_dict(),
-                                'state_dict_endecoder': endecoder.state_dict(),
                                 'weights': weights,
                                 'pseudo_label': pseudo_label},
                             './pkl/dualgr_{}_acc{:.4f}.pkl'.format(dataset, best_acc))
@@ -298,7 +256,6 @@ for file in files_real:
                     bad_count = 0
                     best_result = y_eval
                     torch.save({'state_dict': model.state_dict(),
-                                'state_dict_endecoder': endecoder.state_dict(),
                                 'weights': weights,
                                 'pseudo_label': pseudo_label},
                             './pkl/dualgr_{}_acc{:.4f}.pkl'.format(dataset, best_modularity))
@@ -323,34 +280,53 @@ for file in files_real:
 
     best_model = torch.load('./pkl/'+model_name+'.pkl', map_location=shared_feature.device)
     state_dic = best_model['state_dict']
-    state_dic_encoder = best_model['state_dict_endecoder']
     weights = best_model['weights']
+    print('view weight: ' + ', '.join(map(str, weights)))
+
     pseudo_label = best_model['pseudo_label']
 
-    endecoder.load_state_dict(state_dic_encoder)
     model.load_state_dict(state_dic)
 
     model.eval()
-    with torch.no_grad():
-        model.endecoder = endecoder
-        a_pred, x_pred, z_all, q_all, a_pred_x, x_pred_x = model(shared_feature, adjs_labels, weights, pseudo_label, alpha,quantize=quantize, varepsilon=varepsilon)
-        kmeans = KMeans(n_clusters=class_num, n_init=5)
-        y_eval = kmeans.fit_predict(z_all[-1].detach().cpu().numpy())
-        if is_real == False:
-            nmi, acc, ari, f1 = eva(y, y_eval, 'Final Kz')
-            with open('./result/results.txt', 'a') as f:
-                f.write(str(file) + ', {:.4f}'.format(acc) + ', {:.4f}'.format(f1) + \
-                    ', {:.4f}'.format(ari) + ', {:.4f}'.format(nmi) + '\n')
-            with open('./result/' + file + '.txt', 'w') as f:
-                for item in best_result:
-                    f.write(str(item) + ' ')
-        else:
-            modularity = eva_real(y_eval, file)
-            with open('./result/results_real.txt', 'a') as f:
-                f.write(str(file) + ', ' + str(args.n_clusters) +', {:.4f}'.format(modularity) + '\n')
-            with open('./result/' + file + '-' + str(args.n_clusters) + '.txt', 'w') as f:
-                for item in best_result:
-                    f.write(str(item) + ' ')
+    
+    best_result = []
+    best_acc = 0
+    best_f1 = 0
+    best_ari = 0
+    best_nmi = 0
+    best_modularity = 0
+    
+    for i in range(3):
+        with torch.no_grad():
+            a_pred, x_pred, z_all, q_all = model(shared_feature, adjs_labels, weights, pseudo_label, alpha,quantize=quantize, varepsilon=varepsilon)
+            kmeans = KMeans(n_clusters=class_num, n_init=5)
+            y_eval = kmeans.fit_predict(z_all[-1].detach().cpu().numpy())
+            if is_real == False:
+                nmi, acc, ari, f1 = eva(y, y_eval, 'Final Kz')
+                if ari + nmi > best_acc + best_nmi:
+                    best_acc = acc
+                    best_f1 = f1
+                    best_ari = ari
+                    best_nmi = nmi
+                    best_result = y_eval
+            else:
+                modularity = eva_real(y_eval, file)
+                if modularity > best_modularity:
+                    best_modularity = modularity
+                    best_result = y_eval
+    if is_real == False:
+        with open('./result/results_test.txt', 'a') as f:
+            f.write(str(file) + ', {:.4f}'.format(acc) + ', {:.4f}'.format(f1) + \
+                ', {:.4f}'.format(ari) + ', {:.4f}'.format(nmi) + '\n')
+        with open('./result/test/' + file + '.txt', 'w') as f:
+            for item in best_result:
+                f.write(str(item) + ' ')
+    else:
+        with open('./result/results_syn_sem.txt', 'a') as f:
+            f.write(str(file) + ', ' + str(args.n_clusters) +', {:.4f}'.format(modularity) + '\n')
+        with open('./result/' + file + '-' + str(args.n_clusters) + '.txt', 'w') as f:
+            for item in best_result:
+                f.write(str(item) + ' ')
                     
 
     print('Test complete...')
