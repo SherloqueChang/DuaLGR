@@ -1,6 +1,7 @@
 import math
 import random
 import sys
+import re
 
 import numpy as np
 import scipy.sparse as sp
@@ -14,10 +15,31 @@ import random
 import pandas as pd
 import itertools
 from sklearn.neighbors import NearestNeighbors
+from sklearn.decomposition import PCA
 from torch_cluster import knn_graph
 import h5py
 
-''' Compute Personalized Page Ranking'''
+
+def pca_weights(views):
+    n = views[0].shape[0]
+    m = np.zeros((int(n * (n - 1) / 2), len(views)))
+    col_idx = 0
+    for matrix in views:
+        print(matrix.shape)
+        row_idx = 0
+        for i in range(n):
+            for j in range(i + 1, n):
+                m[row_idx][col_idx] = matrix[i, j]
+                row_idx += 1
+        col_idx += 1
+    
+    pca = PCA()
+    pca.fit(m)
+
+    explained_variance = pca.explained_variance_
+
+    pc1, pc2, pc3, pc4 = [explained_variance[i]/sum(explained_variance) for i in range(4)]
+    return [pc1, pc2, pc3, pc4]
 
 
 def compute_ppr(a, dataset, alpha=0.2, self_loop=True, epsilon=0.01):
@@ -85,6 +107,11 @@ def normalize_weight(weights, p=0, eps=1e-12):
     # r = max(np.power(np.power(ws, p).sum(), 1/p), eps)
     # ws = ws / r
     return ws
+
+
+def get_n_clusters(s):
+    match = re.search(r"_", s)
+    return int(s[match.start()-1:match.start()])
 
 
 def normalize_spfeatures(mx):
@@ -244,14 +271,16 @@ def load_multi(dataset, root, file, is_real):
 
     # labels = torch.LongTensor(np.argmax(truelabels, -1)).contiguous()
     
-    truefeatures = np.load('D:/Document/研究生/research/graph clustering/embedding_model/data/feature/cs/' + file + '.npy', allow_pickle=True)
+    truefeatures = np.load('D:/Document/研究生/research/graph clustering/data/data/feature/cs/' + file + '.npy', allow_pickle=True)
     N = truefeatures.shape[0]
     if is_real == False:
-        truelabels = np.load('D:/Document/研究生/research/graph clustering/embedding_model/data/label/' + file + '.npy', allow_pickle=True)
+        truelabels = np.load('D:/Document/研究生/research/graph clustering/data/data/label/' + file + '.npy', allow_pickle=True)
     else:
         truelabels = np.zeros((N, 1))
-    adj1 = np.load('D:/Document/研究生/research/graph clustering/embedding_model/data/co-usage/' + file + '.npy', allow_pickle=True)
-    adj2 = np.load('D:/Document/研究生/research/graph clustering/embedding_model/data/semantic/' + file + '.npy', allow_pickle=True)
+    adj1 = np.load('D:/Document/研究生/research/graph clustering/data/co-usage/' + file + '.npy', allow_pickle=True)
+    adj2 = np.load('D:/Document/研究生/research/graph clustering/data/semantic/' + file + '.npy', allow_pickle=True)
+    adj3 = np.load('D:/Document/研究生/research/graph clustering/data/cdm/' + file + '.npy', allow_pickle=True)
+    adj4 = np.load('D:/Document/研究生/research/graph clustering/data/shared-attr/' + file + '.npy', allow_pickle=True)
     rownetworks = np.array([adj1, adj2])
     numView = rownetworks.shape[0]
     adjs_labels = []
@@ -557,18 +586,6 @@ def mine_Amazon(dataset, root):
 
 def load_data(dataset, path, file, is_real):
     """Load data."""
-    # if dataset in ['cora', 'citeseer', 'pubmed']:
-    #     num_graph = 2
-    #     labels, adjs, feature, adjs_labels, feature_label = load_planetoid(dataset, path)
-    #     feature1_label = torch.matmul(feature_label, feature_label.t())
-    #     feature1 = normalize_features(feature1_label)
-    #     features = [feature, feature1]
-    #     feature_labels = [feature_label, feature1_label]
-    #     shared_feature = torch.cat(features, dim=-1)
-    #     shared_feature_label = torch.cat(feature_labels, dim=1)
-    #     adjs = [adjs, adjs.clone()]
-    #     adjs_labels = [adjs_labels, adjs_labels.clone()]
-    # if dataset in ['acm', 'dblp']:
     labels, adjs, feature, adjs_labels, feature_label, num_graph = load_multi(dataset, path, file, is_real)
     features = []
     feature_labels = []
@@ -579,25 +596,6 @@ def load_data(dataset, path, file, is_real):
     shared_feature_label = feature_label
     
     return labels, adjs_labels, shared_feature, shared_feature_label, num_graph
-
-    # elif dataset in ['chameleon', 'texas', 'squirrel']:
-    #     labels, adjs, features, adjs_labels, feature_labels, shared_feature, shared_feature_label, num_graph = load_hete_data(dataset, 1)
-    # elif dataset == 'acm00':
-    #     labels, adjs_labels, shared_feature, shared_feature_label, num_graph = load_synthetic_data(r=0.00, path=path)
-    # elif dataset == 'acm01':
-    #     labels, adjs_labels, shared_feature, shared_feature_label, num_graph = load_synthetic_data(r=0.10, path=path)
-    # elif dataset == 'acm02':
-    #     labels, adjs_labels, shared_feature, shared_feature_label, num_graph = load_synthetic_data(r=0.20, path=path)
-    # elif dataset == 'acm03':
-    #     labels, adjs_labels, shared_feature, shared_feature_label, num_graph = load_synthetic_data(r=0.30, path=path)
-    # elif dataset == 'acm04':
-    #     labels, adjs_labels, shared_feature, shared_feature_label, num_graph = load_synthetic_data(r=0.40, path=path)
-    # elif dataset == 'acm05':
-    #     labels, adjs_labels, shared_feature, shared_feature_label, num_graph = load_synthetic_data(r=0.50, path=path)
-
-    # else:
-    #     assert 'Dataset is not exist.'
-    # return labels, adjs_labels, shared_feature, shared_feature_label, num_graph
 
 
 def load_graph(dataset, k):

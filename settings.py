@@ -30,6 +30,7 @@ def acm():
     parser.add_argument('--use_cuda', type=bool, default=True, help='')
     parser.add_argument('--update_interval', type=int, default=10, help='')
     parser.add_argument('--random_seed', type=int, default=2023, help='')
+    # parser.add_argument('--file', type=str, default='fontforge-4_fontforge_merge_h', help='')
     args = parser.parse_args()
     return args
 
@@ -103,6 +104,7 @@ def dblp():
     parser.add_argument('--weight_decay', type=float, default=5e-6, help='weight decay for DuaLGR')
     parser.add_argument('--update_interval', type=int, default=10, help='')
     parser.add_argument('--random_seed', type=int, default=2023, help='')
+    # parser.add_argument('--file', type=str, default='fontforge-4_fontforge_merge_h', help='')
     args = parser.parse_args()
     return args
 
@@ -247,17 +249,17 @@ def acm05():
     return args
 
 
-def get_settings(dataset='acm'):
+def get_settings(dataset='dblp'):
     args_dic = {
         'acm': acm(),
         'dblp': dblp(),
-        'texas': texas(),
-        'chameleon': chameleon(),
-        'acm00': acm00(),
-        'acm01': acm01(),
-        'acm02': acm02(),
-        'acm03': acm03(),
-        'acm04': acm04(),
-        'acm05': acm05(),
+        # 'texas': texas(),
+        # 'chameleon': chameleon(),
+        # 'acm00': acm00(),
+        # 'acm01': acm01(),
+        # 'acm02': acm02(),
+        # 'acm03': acm03(),
+        # 'acm04': acm04(),
+        # 'acm05': acm05(),
     }
     return args_dic[dataset]
