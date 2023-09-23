@@ -231,6 +231,7 @@ for file in files_real:
             kmeans = KMeans(n_clusters=class_num, n_init=5)
             y_prim = kmeans.fit_predict(z_all[-1].detach().cpu().numpy())
             pseudo_label = y_prim
+            views = []
 
             for v in range(graph_num):
                 y_pred = kmeans.fit_predict(z_all[v].detach().cpu().numpy())
