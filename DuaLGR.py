@@ -74,7 +74,7 @@ for file in files_syn:
     parser.add_argument('--patience', type=int, default=500, help='')
     parser.add_argument('--endecoder_lr', type=float, default=1e-3, help='learning rate for autoencoder')
     parser.add_argument('--endecoder_weight_decay', type=float, default=5e-6, help='weight decay for autoencoder')
-    parser.add_argument('--lr', type=float, default=1e-3, help='learning rate for DuaLGR')
+    parser.add_argument('--lr', type=float, default=1e-4, help='learning rate for DuaLGR')
     parser.add_argument('--weight_decay', type=float, default=5e-6, help='weight decay for DuaLGR')
     parser.add_argument('--update_interval', type=int, default=10, help='')
     parser.add_argument('--random_seed', type=int, default=2023, help='')
@@ -155,7 +155,7 @@ for file in files_syn:
         param_all.append({'params': model.gnn.parameters()})
         optimizer_model = Adam(param_all, lr=lr, weight_decay=weight_decay)
         
-        weights = np.load('../data/weights_2/' + file + '.npy', allow_pickle=True)
+        weights = np.load('../data/weights/' + file + '.npy', allow_pickle=True)
 
         with torch.no_grad():
             model.eval()
@@ -243,8 +243,8 @@ for file in files_syn:
                                 'weights': weights,
                                 'pseudo_label': pseudo_label},
                             './pkl/dualgr_{}_acc{:.4f}.pkl'.format(dataset, best_acc))
-                    print('best acc:{}, best nmi:{}, best ari:{}, best f1:{}, bestepoch:{}'.format(
-                                                best_acc, best_nmi, best_ari, best_f1, best_epoch))
+                    print('best ari:{}, best nmi:{}, best acc:{}, best f1:{}, bestepoch:{}'.format(
+                                                best_ari, best_nmi, best_acc, best_f1, best_epoch))
                 else:
                     bad_count += 1
             else:
@@ -266,8 +266,8 @@ for file in files_syn:
 
             if bad_count >= patience:
                 if is_real == False:
-                    print('complete training, best acc:{}, best nmi:{}, best ari:{}, best f1:{}, bestepoch:{}'.format(
-                    best_acc, best_nmi, best_ari, best_f1, best_epoch))
+                    print('complete training, best ari:{}, best nmi:{}, best acc:{}, best f1:{}, bestepoch:{}'.format(
+                    best_ari, best_nmi, best_acc, best_f1, best_epoch))
                 else:
                     print('complete training, best modularity:{}, bestepoch:{}'.format(best_modularity, best_epoch))
                 print()
@@ -296,24 +296,23 @@ for file in files_syn:
     best_nmi = 0
     best_modularity = 0
     
-    for i in range(3):
-        with torch.no_grad():
-            a_pred, x_pred, z_all, q_all = model(shared_feature, adjs_labels, weights, pseudo_label, alpha,quantize=quantize, varepsilon=varepsilon)
-            kmeans = KMeans(n_clusters=class_num, n_init=5)
-            y_eval = kmeans.fit_predict(z_all[-1].detach().cpu().numpy())
-            if is_real == False:
-                nmi, acc, ari, f1 = eva(y, y_eval, 'Final Kz')
-                if ari + nmi > best_acc + best_nmi:
-                    best_acc = acc
-                    best_f1 = f1
-                    best_ari = ari
-                    best_nmi = nmi
-                    best_result = y_eval
-            else:
-                modularity = eva_real(y_eval, file)
-                if modularity > best_modularity:
-                    best_modularity = modularity
-                    best_result = y_eval
+    with torch.no_grad():
+        a_pred, x_pred, z_all, q_all = model(shared_feature, adjs_labels, weights, pseudo_label, alpha,quantize=quantize, varepsilon=varepsilon)
+        kmeans = KMeans(n_clusters=class_num, n_init=5)
+        y_eval = kmeans.fit_predict(z_all[-1].detach().cpu().numpy())
+        if is_real == False:
+            nmi, acc, ari, f1 = eva(y, y_eval, 'Final Kz')
+            if ari + nmi > best_acc + best_nmi:
+                best_acc = acc
+                best_f1 = f1
+                best_ari = ari
+                best_nmi = nmi
+                best_result = y_eval
+        else:
+            modularity = eva_real(y_eval, file)
+            if modularity > best_modularity:
+                best_modularity = modularity
+                best_result = y_eval
     if is_real == False:
         with open('./result/results_test.txt', 'a') as f:
             f.write(str(file) + ', {:.4f}'.format(acc) + ', {:.4f}'.format(f1) + \
