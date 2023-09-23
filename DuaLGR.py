@@ -49,7 +49,7 @@ files_real = [
     'wiredtiger_src_include_extern_h'
 ]
 
-for file in files_real:
+for file in files_syn:
 
     is_real = False
     # for n_clusters in [4,5,6,7,8,9,10]:
@@ -73,9 +73,9 @@ for file in files_real:
     parser.add_argument('--pretrain', type=int, default=500, help='pretrain epochs')
     parser.add_argument('--epoch', type=int, default=1000, help='')
     parser.add_argument('--patience', type=int, default=500, help='')
-    parser.add_argument('--endecoder_lr', type=float, default=1e-3, help='learning rate for autoencoder')
+    parser.add_argument('--endecoder_lr', type=float, default=1e-4, help='learning rate for autoencoder')
     parser.add_argument('--endecoder_weight_decay', type=float, default=5e-6, help='weight decay for autoencoder')
-    parser.add_argument('--lr', type=float, default=3e-3, help='learning rate for DuaLGR')
+    parser.add_argument('--lr', type=float, default=1e-3, help='learning rate for DuaLGR')
     parser.add_argument('--weight_decay', type=float, default=5e-6, help='weight decay for DuaLGR')
     parser.add_argument('--update_interval', type=int, default=10, help='')
     parser.add_argument('--random_seed', type=int, default=2023, help='')
@@ -189,6 +189,7 @@ for file in files_real:
 
         best_a = [1e-12 for i in range(graph_num)]
         weights = normalize_weight(best_a)
+        weights = np.load('../data/weights/' + file + '.npy', allow_pickle=True)
 
         with torch.no_grad():
             model.eval()
@@ -235,10 +236,12 @@ for file in files_real:
 
             for v in range(graph_num):
                 y_pred = kmeans.fit_predict(z_all[v].detach().cpu().numpy())
+                views.append(z_all[v].detach().cpu().numpy())
                 a = eva(y_prim, y_pred, visible=False, metrics='nmi')
                 best_a[v] = a
 
-            weights = normalize_weight(best_a, p=weight_soft)
+            # weights = normalize_weight(best_a, p=weight_soft)
+            weights = pca_weights(views)
             # print(weights)
 
 
@@ -339,10 +342,10 @@ for file in files_real:
         y_eval = kmeans.fit_predict(z_all[-1].detach().cpu().numpy())
         if is_real == False:
             nmi, acc, ari, f1 = eva(y, y_eval, 'Final Kz')
-            with open('./result/results.txt', 'a') as f:
+            with open('./result/results_test.txt', 'a') as f:
                 f.write(str(file) + ', {:.4f}'.format(acc) + ', {:.4f}'.format(f1) + \
                     ', {:.4f}'.format(ari) + ', {:.4f}'.format(nmi) + '\n')
-            with open('./result/' + file + '.txt', 'w') as f:
+            with open('./result/test/' + file + '.txt', 'w') as f:
                 for item in best_result:
                     f.write(str(item) + ' ')
         else:

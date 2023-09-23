@@ -271,17 +271,18 @@ def load_multi(dataset, root, file, is_real):
 
     # labels = torch.LongTensor(np.argmax(truelabels, -1)).contiguous()
     
-    truefeatures = np.load('D:/Document/研究生/research/graph clustering/data/data/feature/cs/' + file + '.npy', allow_pickle=True)
+    truefeatures = np.load('D:/Document/研究生/research/graph clustering/data/feature/all/' + file + '.npy', allow_pickle=True)
     N = truefeatures.shape[0]
     if is_real == False:
-        truelabels = np.load('D:/Document/研究生/research/graph clustering/data/data/label/' + file + '.npy', allow_pickle=True)
+        truelabels = np.load('D:/Document/研究生/research/graph clustering/data/label/' + file + '.npy', allow_pickle=True)
     else:
         truelabels = np.zeros((N, 1))
     adj1 = np.load('D:/Document/研究生/research/graph clustering/data/co-usage/' + file + '.npy', allow_pickle=True)
     adj2 = np.load('D:/Document/研究生/research/graph clustering/data/semantic/' + file + '.npy', allow_pickle=True)
     adj3 = np.load('D:/Document/研究生/research/graph clustering/data/cdm/' + file + '.npy', allow_pickle=True)
     adj4 = np.load('D:/Document/研究生/research/graph clustering/data/shared-attr/' + file + '.npy', allow_pickle=True)
-    rownetworks = np.array([adj1, adj2])
+    # rownetworks = np.array([adj1, adj2])
+    rownetworks = np.array([adj1, adj2, adj3, adj4])
     numView = rownetworks.shape[0]
     adjs_labels = []
     adjs = []
