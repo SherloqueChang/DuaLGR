@@ -20,12 +20,30 @@ from torch_cluster import knn_graph
 import h5py
 
 
+def bundled_label2origin(file, labels, N):
+    '''
+    预处理数据聚类后的结果 -> 预处理前的格式
+    [shorter list] -> [longer list]
+    '''
+    if N == len(labels):
+        return labels
+    res_labels = [0 for i in range(N)]
+    blocks = []
+    with open('D:/Document/研究生/research/graph clustering/data/bundle/test/blocks/' + file + '.txt', 'r') as f:
+        lines = f.readlines()
+        for i, line in enumerate(lines):
+            blocks.append(line.strip().split(' '))
+    for i in range(len(labels)):
+        for j in blocks[i]:
+            res_labels[int(j)] = labels[i]
+    return res_labels
+
+
 def pca_weights(views):
     n = views[0].shape[0]
     m = np.zeros((int(n * (n - 1) / 2), len(views)))
     col_idx = 0
     for matrix in views:
-        print(matrix.shape)
         row_idx = 0
         for i in range(n):
             for j in range(i + 1, n):
@@ -229,60 +247,20 @@ def load_planetoid(dataset, path):
 
 
 def load_multi(dataset, root, file, is_real):
-    # load the data: x, tx, allx, graph
-    # if dataset == 'acm':
-    #     path = root + 'ACM3025.mat'
-    # elif dataset == 'dblp':
-    #     path = root + 'DBLP4057.mat'
-    # elif dataset == 'imdb':
-    #     path = root + 'imdb5k.mat'
-        
-    # data = sio.loadmat(path)
-    # print(dataset)
-    # print(data)
-    # rownetworks = np.array([(data['PLP'] - np.eye(N)).tolist()]) #, (data['PLP'] - np.eye(N)).tolist() , (data['PTP'] - np.eye(N)).tolist()])
-
-
-
-    # if dataset == "acm":
-    #     truelabels, truefeatures = data['label'], data['feature'].astype(float)
-    #     N = truefeatures.shape[0]  # nodes num
-    #     rownetworks = np.array([(data['PAP']).tolist(), (data['PLP']).tolist()])
-    # elif dataset == "dblp":
-    #     truelabels, truefeatures = data['label'], data['features'].astype(float)
-    #     N = truefeatures.shape[0]
-    #     rownetworks = np.array([(data['net_APA']).tolist(), (data['net_APCPA']).tolist(), (data['net_APTPA']).tolist()])
-    #     rownetworks[2] += np.eye(rownetworks[2].shape[0])
-    #     rownetworks = rownetworks[:2]
-    # elif dataset == 'imdb':
-    #     truelabels, truefeatures = data['label'], data['feature'].astype(float)
-    #     N = truefeatures.shape[0]
-    #     rownetworks = np.array([(data['MAM']).tolist(), (data['MDM']).tolist(), (data['MYM']).tolist()])
-    #     # rownetworks = rownetworks[:2]
-
-    # numView = rownetworks.shape[0]
-    # adjs_labels = []
-    # adjs = []
-    # feature_labels = torch.FloatTensor(np.array(truefeatures)).contiguous()
-    # features = torch.FloatTensor(normalize_features(truefeatures)).contiguous()
-    # for i in range(numView):
-    #     adjs_labels.append(torch.FloatTensor(np.array(rownetworks[i])))
-    #     adjs.append(torch.FloatTensor(normalize_adj(np.array(rownetworks[i]))))
-
-    # labels = torch.LongTensor(np.argmax(truelabels, -1)).contiguous()
     
-    truefeatures = np.load('D:/Document/研究生/research/graph clustering/data/feature/all/' + file + '.npy', allow_pickle=True)
+    truefeatures = np.load('D:/Document/研究生/research/graph clustering/data/bundle/test/feature/' + file + '.npy', allow_pickle=True)
     N = truefeatures.shape[0]
+    adj1 = np.load('D:/Document/研究生/research/graph clustering/data/bundle/test/usage/' + file + '.npy', allow_pickle=True)
+    adj2 = np.load('D:/Document/研究生/research/graph clustering/data/bundle/test/semantic/' + file + '.npy', allow_pickle=True)
+    # adj3 = np.load('D:/Document/研究生/research/graph clustering/data/cdm/' + file + '.npy', allow_pickle=True)
+    # adj4 = np.load('D:/Document/研究生/research/graph clustering/data/shared-attr/' + file + '.npy', allow_pickle=True)
+    rownetworks = np.array([adj1, adj2])
     if is_real == False:
         truelabels = np.load('D:/Document/研究生/research/graph clustering/data/label/' + file + '.npy', allow_pickle=True)
+        print("label: {}, adj1: {}, adj2: {}".format(truelabels.shape, adj1.shape, adj2.shape))
     else:
         truelabels = np.zeros((N, 1))
-    adj1 = np.load('D:/Document/研究生/research/graph clustering/data/co-usage/' + file + '.npy', allow_pickle=True)
-    adj2 = np.load('D:/Document/研究生/research/graph clustering/data/semantic/' + file + '.npy', allow_pickle=True)
-    adj3 = np.load('D:/Document/研究生/research/graph clustering/data/cdm/' + file + '.npy', allow_pickle=True)
-    adj4 = np.load('D:/Document/研究生/research/graph clustering/data/shared-attr/' + file + '.npy', allow_pickle=True)
-    # rownetworks = np.array([adj1, adj2])
-    rownetworks = np.array([adj1, adj2, adj3, adj4])
+    # rownetworks = np.array([adj1, adj2, adj3, adj4])
     numView = rownetworks.shape[0]
     adjs_labels = []
     adjs = []

@@ -64,7 +64,11 @@ def cluster_acc(y_true, y_pred):
     return acc, f1_macro
 
 
+
+
+
 def eva(y_true, y_pred, epoch=0, visible=True, metrics='all'):
+    # print(len(y_true), len(y_pred))
     if metrics == 'all':
         acc, f1 = cluster_acc(y_true, y_pred)
         nmi = nmi_score(y_true, y_pred, average_method='arithmetic')
@@ -84,15 +88,23 @@ def eva(y_true, y_pred, epoch=0, visible=True, metrics='all'):
 
 def eva_real(y_pred, file):
     graph = nx.Graph()
-    adj = np.load('D:/Document/研究生/research/graph clustering/embedding_model/data/co-usage/' + file + '.npy', allow_pickle=True)
-    for i in range(adj.shape[0]):
+    adj1 = np.load('D:/Document/研究生/research/graph clustering/data/bundle/usage/' + file + '.npy', allow_pickle=True)
+    adj2 = np.load('D:/Document/研究生/research/graph clustering/data/bundle/semantic/' + file + '.npy', allow_pickle=True)
+    for i in range(adj1.shape[0]):
         graph.add_node(i)
-        for j in range(i + 1, adj.shape[1]):
-            if adj[i][j] != 0:
-                graph.add_edge(i, j, weight=adj[i][j])
+        for j in range(i + 1, adj1.shape[1]):
+            if adj1[i][j] != 0:
+                graph.add_edge(i, j, weight=adj1[i][j])
     communities = {}
     for i, j in enumerate(y_pred):
         communities[i] = j
-    modularity = calculate_modularity(graph, communities)
+    modularity1 = calculate_modularity(graph, communities)
+    graph = nx.Graph()
+    for i in range(adj2.shape[0]):
+        graph.add_node(i)
+        for j in range(i + 1, adj2.shape[1]):
+            if adj2[i][j] != 0:
+                graph.add_edge(i, j, weight=adj2[i][j])
+    modularity2 = calculate_modularity(graph, communities)
     # print('modularity: ', modularity)
-    return modularity
+    return modularity1 + modularity2
