@@ -29,7 +29,7 @@ def bundled_label2origin(file, labels, N):
         return labels
     res_labels = [0 for i in range(N)]
     blocks = []
-    with open('D:/Document/研究生/research/graph clustering/data/bundle/test/blocks/' + file + '.txt', 'r') as f:
+    with open('D:/Document/研究生/research/graph clustering/data/bundle/blocks/' + file + '.txt', 'r') as f:
         lines = f.readlines()
         for i, line in enumerate(lines):
             blocks.append(line.strip().split(' '))
@@ -248,13 +248,16 @@ def load_planetoid(dataset, path):
 
 def load_multi(dataset, root, file, is_real):
     
-    truefeatures = np.load('D:/Document/研究生/research/graph clustering/data/bundle/test/feature/' + file + '.npy', allow_pickle=True)
+    # truefeatures = np.load('D:/Document/研究生/research/graph clustering/data/feature/us/' + file + '.npy', allow_pickle=True)
+    truefeatures = np.load('D:/Document/研究生/research/graph clustering/data/bundle/feature/' + file + '.npy', allow_pickle=True)
+    # truefeatures = np.load('D:/Document/研究生/research/graph clustering/data/bundle/semantic/' + file + '.npy', allow_pickle=True)
     N = truefeatures.shape[0]
-    adj1 = np.load('D:/Document/研究生/research/graph clustering/data/bundle/test/usage/' + file + '.npy', allow_pickle=True)
-    adj2 = np.load('D:/Document/研究生/research/graph clustering/data/bundle/test/semantic/' + file + '.npy', allow_pickle=True)
+    adj1 = np.load('D:/Document/研究生/research/graph clustering/data/bundle/usage/' + file + '.npy', allow_pickle=True)
+    adj2 = np.load('D:/Document/研究生/research/graph clustering/data/bundle/semantic/' + file + '.npy', allow_pickle=True)
     # adj3 = np.load('D:/Document/研究生/research/graph clustering/data/cdm/' + file + '.npy', allow_pickle=True)
     # adj4 = np.load('D:/Document/研究生/research/graph clustering/data/shared-attr/' + file + '.npy', allow_pickle=True)
     rownetworks = np.array([adj1, adj2])
+    # rownetworks = np.array([adj2])
     if is_real == False:
         truelabels = np.load('D:/Document/研究生/research/graph clustering/data/label/' + file + '.npy', allow_pickle=True)
         print("label: {}, adj1: {}, adj2: {}".format(truelabels.shape, adj1.shape, adj2.shape))
@@ -713,6 +716,8 @@ def calculate_modularity(graph, communities):
 
     num_edges = graph.number_of_edges()
     total_weight = sum([data['weight'] for _, _, data in graph.edges(data=True)])
+    if total_weight == 0:
+        return 0.0
 
     modularity = 0.0
     for community in set(communities.values()):

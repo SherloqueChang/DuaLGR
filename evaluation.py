@@ -87,24 +87,28 @@ def eva(y_true, y_pred, epoch=0, visible=True, metrics='all'):
     return result
 
 def eva_real(y_pred, file):
+    adj1 = np.load('D:/Document/研究生/research/graph clustering/data//usage/' + file + '.npy', allow_pickle=True)
+    adj2 = np.load('D:/Document/研究生/research/graph clustering/data/semantic/' + file + '.npy', allow_pickle=True)
+    adj3 = np.load('D:/Document/研究生/research/graph clustering/data/cdm/' + file + '.npy', allow_pickle=True)
+    # adj1 = np.load('D:/Document/研究生/research/graph clustering/data//bundle/usage/' + file + '.npy', allow_pickle=True)
+    # adj2 = np.load('D:/Document/研究生/research/graph clustering/data/bundle/semantic/' + file + '.npy', allow_pickle=True)
+    
+    adj = adj1 + adj2 + adj3
+    # print(adj.shape[0], len(y_pred))
+    
     graph = nx.Graph()
-    adj1 = np.load('D:/Document/研究生/research/graph clustering/data/bundle/usage/' + file + '.npy', allow_pickle=True)
-    adj2 = np.load('D:/Document/研究生/research/graph clustering/data/bundle/semantic/' + file + '.npy', allow_pickle=True)
-    for i in range(adj1.shape[0]):
+    for i in range(adj.shape[0]):
         graph.add_node(i)
-        for j in range(i + 1, adj1.shape[1]):
-            if adj1[i][j] != 0:
-                graph.add_edge(i, j, weight=adj1[i][j])
-    communities = {}
+        for j in range(i + 1, adj.shape[1]):
+            if adj[i][j] != 0:
+                graph.add_edge(i, j, weight=adj[i][j])
+        
+    communities = []
+    for i in range(max(y_pred) + 1):
+        communities.append([])
     for i, j in enumerate(y_pred):
-        communities[i] = j
-    modularity1 = calculate_modularity(graph, communities)
-    graph = nx.Graph()
-    for i in range(adj2.shape[0]):
-        graph.add_node(i)
-        for j in range(i + 1, adj2.shape[1]):
-            if adj2[i][j] != 0:
-                graph.add_edge(i, j, weight=adj2[i][j])
-    modularity2 = calculate_modularity(graph, communities)
+        communities[j].append(i)
+    
+    modularity = nx.community.modularity(graph, communities)
     # print('modularity: ', modularity)
-    return modularity1 + modularity2
+    return modularity
